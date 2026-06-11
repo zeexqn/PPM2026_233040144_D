@@ -1,13 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
-import 'catatan.dart';
+import 'main.dart' show Catatan;
 
 class DbHelper {
-  DbHelper._();
-  static final DbHelper instance = DbHelper._();
+  DbHelper._(); // private constructor
+  static final DbHelper instance = DbHelper._(); // singleton
 
   static const _dbName = 'catatan.db';
   static const _dbVersion = 1;
@@ -22,47 +19,27 @@ class DbHelper {
   }
 
   Future<Database> _openDb() async {
-    DatabaseFactory dbFactory;
-    String path;
-
-    if (kIsWeb) {
-      // Menggunakan databaseFactoryFfiWeb dengan inisialisasi yang lebih aman
-      dbFactory = databaseFactoryFfiWeb;
-      path = _dbName;
-    } else {
-      dbFactory = databaseFactory;
-      final dir = await getDatabasesPath();
-      path = join(dir, _dbName);
-    }
-
-    try {
-      return await dbFactory.openDatabase(
-        path,
-        options: OpenDatabaseOptions(
-          version: _dbVersion,
-          onCreate: (db, version) async {
-            await db.execute('''
-              CREATE TABLE $tabel (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                judul       TEXT    NOT NULL,
-                isi         TEXT    NOT NULL,
-                kategori    TEXT    NOT NULL,
-                email       TEXT    NOT NULL,
-                dibuat_pada INTEGER NOT NULL
-              )
-            ''');
-          },
-        ),
-      );
-    } catch (e) {
-      // Fallback sederhana jika SQLite Web gagal total
-      if (kIsWeb) {
-        debugPrint('SQLite Web Error: $e. Menggunakan In-Memory Database sebagai fallback.');
-        return await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
-      }
-      rethrow;
-    }
+    final dir = await getDatabasesPath();
+    final path = join(dir, _dbName);
+    return openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE $tabel (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            judul       TEXT    NOT NULL,
+            isi         TEXT    NOT NULL,
+            kategori    TEXT    NOT NULL,
+            email       TEXT    NOT NULL,
+            dibuat_pada INTEGER NOT NULL
+          )
+        ''');
+      },
+    );
   }
+
+  // ===== CRUD =====
 
   Future<int> insert(Catatan c) async {
     final db = await database;

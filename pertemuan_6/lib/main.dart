@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'catatan.dart';
-import 'db_helper.dart';
+import 'api_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,14 +10,13 @@ void main() async {
   runApp(const MyApp());
 }
 
-// === APP ===
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Catatan Mahasiswa',
+      title: 'Catatan Mahasiswa (API)',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.teal,
@@ -73,7 +72,7 @@ class _HomePageState extends State<HomePage> {
 
   void _muatUlang() {
     setState(() {
-      _futureCatatan = DbHelper.instance.getAll();
+      _futureCatatan = ApiClient.instance.getAll();
     });
   }
 
@@ -87,7 +86,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Hapus catatan?'),
-        content: Text('"${c.judul}" akan dihapus permanen.'),
+        content: Text('"${c.judul}" akan dihapus permanen dari server.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -103,18 +102,20 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (yakin == true) {
-      await DbHelper.instance.delete(c.id!);
-      if (!mounted) return;
-      _muatUlang();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${c.judul}" dihapus')),
-      );
+      try {
+        await ApiClient.instance.delete(c.id!);
+        if (!mounted) return;
+        _muatUlang();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${c.judul}" dihapus')),
+        );
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus: ${e.message}')),
+        );
+      }
     }
-  }
-
-  Future<void> _bukaDetail(Catatan c) async {
-    await Navigator.pushNamed(context, '/detail', arguments: c);
-    _muatUlang();
   }
 
   @override
@@ -174,7 +175,20 @@ class _HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            final e = snapshot.error;
+            final pesan = e is ApiException ? e.message : 'Terjadi kesalahan: $e';
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text(pesan, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _muatUlang, child: const Text('Coba Lagi')),
+                ],
+              ),
+            );
           }
 
           var data = snapshot.data ?? [];
@@ -191,7 +205,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 12),
                   Text(
                     _filterTerpilih == 'Semua'
-                        ? 'Belum ada catatan'
+                        ? 'Belum ada catatan di server'
                         : 'Tidak ada catatan\nuntuk kategori "$_filterTerpilih"',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey[500], fontSize: 16),
@@ -201,59 +215,65 @@ class _HomePageState extends State<HomePage> {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: data.length,
-            itemBuilder: (context, i) {
-              final c = data[i];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-                  title: Text(
-                    c.judul,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+          return RefreshIndicator(
+            onRefresh: () async => _muatUlang(),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: data.length,
+              itemBuilder: (context, i) {
+                final c = data[i];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+                    title: Text(
+                      c.judul,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            Chip(
+                              label: Text(c.kategori),
+                              padding: EdgeInsets.zero,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              labelStyle: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          c.email,
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                          tooltip: 'Edit',
+                          onPressed: () => _bukaForm(initial: c),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          tooltip: 'Hapus',
+                          onPressed: () => _konfirmasiHapus(c),
+                        ),
+                      ],
+                    ),
+                    onTap: () async {
+                      await Navigator.pushNamed(context, '/detail', arguments: c);
+                      _muatUlang();
+                    },
                   ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          Chip(
-                            label: Text(c.kategori),
-                            padding: EdgeInsets.zero,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            labelStyle: const TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        c.email,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                        tooltip: 'Edit',
-                        onPressed: () => _bukaForm(initial: c),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        tooltip: 'Hapus',
-                        onPressed: () => _konfirmasiHapus(c),
-                      ),
-                    ],
-                  ),
-                  onTap: () => _bukaDetail(c),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
@@ -307,19 +327,25 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
     setState(() => _isSaving = true);
 
     try {
-      final catatan = Catatan(
-        id: widget.initial?.id,
-        judul: _judulCtrl.text.trim(),
-        isi: _isiCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        kategori: _kategori,
-        dibuatPada: widget.initial?.dibuatPada ?? DateTime.now(),
-      );
-
       if (widget.initial != null) {
-        await DbHelper.instance.update(catatan);
+        // Mode EDIT
+        final updated = widget.initial!.copyWith(
+          judul: _judulCtrl.text.trim(),
+          isi: _isiCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          kategori: _kategori,
+        );
+        await ApiClient.instance.update(updated);
       } else {
-        await DbHelper.instance.insert(catatan);
+        // Mode TAMBAH
+        final baru = Catatan(
+          judul: _judulCtrl.text.trim(),
+          isi: _isiCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          kategori: _kategori,
+          dibuatPada: DateTime.now(),
+        );
+        await ApiClient.instance.insert(baru);
       }
 
       if (!mounted) return;
@@ -327,11 +353,17 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
         SnackBar(content: Text(widget.initial != null ? 'Catatan diperbarui' : 'Catatan ditambahkan')),
       );
       Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan: ${e.message}')),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e')),
+        SnackBar(content: Text('Error: $e')),
       );
     }
   }

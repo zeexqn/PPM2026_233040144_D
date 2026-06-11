@@ -15,27 +15,28 @@ class Catatan {
     required this.dibuatPada,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      if (id != null) 'id': id,
-      'judul': judul,
-      'isi': isi,
-      'kategori': kategori,
-      'email': email,
-      'dibuat_pada': dibuatPada.millisecondsSinceEpoch,
-    };
-  }
+  // Untuk REST API (ISO-8601 String)
+  Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
+        'judul': judul,
+        'isi': isi,
+        'kategori': kategori,
+        'email': email,
+        'dibuat_pada': dibuatPada.toUtc().toIso8601String(),
+      };
 
-  factory Catatan.fromMap(Map<String, dynamic> map) {
-    return Catatan(
-      id: map['id'] as int?,
-      judul: map['judul'] as String,
-      isi: map['isi'] as String,
-      kategori: map['kategori'] as String,
-      email: map['email'] as String,
-      dibuatPada: DateTime.fromMillisecondsSinceEpoch(map['dibuat_pada'] as int),
-    );
-  }
+  factory Catatan.fromJson(Map<String, dynamic> m) => Catatan(
+        id: m['id'] as int?,
+        judul: m['judul'] as String,
+        isi: m['isi'] as String,
+        kategori: m['kategori'] as String,
+        email: m['email'] ?? '',
+        dibuatPada: DateTime.parse(m['dibuat_pada'] as String).toLocal(),
+      );
+
+  // Fallback map untuk SQLite (jika masih digunakan)
+  Map<String, dynamic> toMap() => toJson();
+  factory Catatan.fromMap(Map<String, dynamic> map) => Catatan.fromJson(map);
 
   Catatan copyWith({
     int? id,

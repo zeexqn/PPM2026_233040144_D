@@ -35,13 +35,14 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
-  # === Baru di Pertemuan 4 ===
-  sqflite: ^2.3.3+1   # akses SQLite di Android/iOS
-  path: ^1.9.0        # helper join path (lokasi DB)
+  # === Baru di Pertemuan 5 ===
+  http: ^1.2.0      # HTTP client resmi Dart
   intl: ^0.19.0       # format tanggal
   shared_preferences: ^2.3.3
 
-  # === Tambahan untuk Web Support ===
+  # === Tetap dipertahankan untuk referensi atau jika butuh offline ===
+  sqflite: ^2.3.3+1
+  path: ^1.9.0
   sqflite_common_ffi: ^2.3.3
   sqflite_common_ffi_web: ^1.1.1
 
