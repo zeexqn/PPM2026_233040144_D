@@ -234,14 +234,18 @@ class _HomePageState extends State<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
+                        Row(
                           children: [
                             Chip(
                               label: Text(c.kategori),
                               padding: EdgeInsets.zero,
                               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              labelStyle: const TextStyle(fontSize: 12),
+                              labelStyle: const TextStyle(fontSize: 11),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              DateFormat('dd/MM/yy HH:mm', 'id').format(c.dibuatPada),
+                              style: TextStyle(color: Colors.grey[500], fontSize: 11),
                             ),
                           ],
                         ),
@@ -322,7 +326,17 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
   }
 
   Future<void> _simpan() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // Fitur Baru: Notifikasi SnackBar jika ada field yang kosong/salah
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mohon lengkapi semua data dengan benar!'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
 
@@ -350,7 +364,13 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.initial != null ? 'Catatan diperbarui' : 'Catatan ditambahkan')),
+        SnackBar(
+          content: Text(widget.initial != null 
+              ? 'Catatan berhasil diperbarui di server' 
+              : 'Catatan berhasil ditambahkan ke server'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       Navigator.pop(context);
     } on ApiException catch (e) {
@@ -375,13 +395,23 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
       appBar: AppBar(title: Text(isEdit ? 'Edit Catatan' : 'Tambah Catatan')),
       body: Form(
         key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction, // Fitur Baru: Validasi langsung saat diketik
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             TextFormField(
               controller: _judulCtrl,
-              decoration: const InputDecoration(labelText: 'Judul', border: OutlineInputBorder()),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Judul wajib diisi' : null,
+              decoration: const InputDecoration(
+                labelText: 'Judul Catatan', 
+                hintText: 'Masukkan judul...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Judul tidak boleh kosong!';
+                if (v.length < 3) return 'Judul minimal 3 karakter';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -394,16 +424,20 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
               ),
               keyboardType: TextInputType.emailAddress,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Email wajib diisi';
+                if (v == null || v.trim().isEmpty) return 'Email wajib diisi untuk data server!';
                 final emailRegex = RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[\w\-]{2,}$');
-                if (!emailRegex.hasMatch(v.trim())) return 'Format email tidak valid';
+                if (!emailRegex.hasMatch(v.trim())) return 'Format email salah (harus ada @ dan .com)';
                 return null;
               },
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _kategori,
-              decoration: const InputDecoration(labelText: 'Kategori', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Kategori', 
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
               items: ['Kuliah', 'Tugas', 'Pribadi', 'Lainnya']
                   .map((k) => DropdownMenuItem(value: k, child: Text(k)))
                   .toList(),
@@ -415,17 +449,31 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
               maxLines: 5,
               decoration: const InputDecoration(
                 labelText: 'Isi Catatan',
+                hintText: 'Tulis detail catatan di sini...',
                 alignLabelWithHint: true,
                 border: OutlineInputBorder(),
+                prefixIcon: Padding(
+                  padding: EdgeInsets.only(bottom: 80),
+                  child: Icon(Icons.description_outlined),
+                ),
               ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Isi wajib diisi' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Isi catatan tidak boleh kosong!' : null,
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               icon: _isSaving
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : Icon(isEdit ? Icons.save : Icons.add_task),
-              label: Text(_isSaving ? 'Menyimpan...' : (isEdit ? 'Simpan Perubahan' : 'Simpan Catatan')),
+              label: Text(
+                _isSaving 
+                    ? 'Sedang Mengirim...' 
+                    : (isEdit ? 'Simpan Perubahan' : 'Simpan ke Server'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
               onPressed: _isSaving ? null : _simpan,
             ),
           ],

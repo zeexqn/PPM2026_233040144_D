@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Added as per requirement
 import 'profile_page.dart';
 
 void main() {
